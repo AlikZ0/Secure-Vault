@@ -36,6 +36,13 @@ jobs:
           fi
           find . -maxdepth 2 -type f | sort
 
+      - name: Validate icon assets
+        run: |
+          test -s SecureVault/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
+          test -s SecureVault/Resources/Assets.xcassets/AppIcon.appiconset/Contents.json
+          test -s SecureVault/Resources/Assets.xcassets/LaunchMark.imageset/Contents.json
+          python3 -m json.tool SecureVault/Resources/Assets.xcassets/AppIcon.appiconset/Contents.json >/dev/null
+
       - name: Generate Xcode project
         run: xcodegen generate --spec project.yml
 
@@ -53,6 +60,16 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             clean build
+
+      - name: Verify icon was bundled into the app
+        run: |
+          set -euo pipefail
+          APP="$RUNNER_TEMP/DerivedData/Build/Products/Release-iphoneos/SecureVault.app"
+          test -s "$APP/Assets.car"
+          ICON=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconName' "$APP/Info.plist")
+          echo "Packaged app icon: $ICON"
+          test "$ICON" = 'AppIcon'
+          /usr/libexec/PlistBuddy -c 'Print :UILaunchScreen:UIImageName' "$APP/Info.plist"
 
       - name: Package unsigned IPA
         run: |
