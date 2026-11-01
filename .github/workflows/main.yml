@@ -29,6 +29,13 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
+      - name: Verify checkout
+        run: |
+          if [ ! -d SecureVaultTests ]; then
+            echo "::warning::SecureVaultTests not found in repository: optional test sources will be omitted."
+          fi
+          find . -maxdepth 2 -type f | sort
+
       - name: Generate Xcode project
         run: xcodegen generate --spec project.yml
 
