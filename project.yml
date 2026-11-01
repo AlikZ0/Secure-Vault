@@ -37,6 +37,7 @@ targets:
     platform: iOS
     sources:
       - path: SecureVaultTests
+        optional: true
     dependencies:
       - target: SecureVault
     settings:
