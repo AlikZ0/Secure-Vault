@@ -14,7 +14,7 @@ struct SecureVaultApp: App {
                     LockView(vault: vault)
                 }
 
-                if scenePhase != .active {
+                if scenePhase != .active && vault.isUnlocked {
                     PrivacyShieldView()
                         .ignoresSafeArea()
                         .zIndex(100)
@@ -25,7 +25,7 @@ struct SecureVaultApp: App {
             .alert(
                 "Ошибка",
                 isPresented: Binding(
-                    get: { vault.errorMessage != nil },
+                    get: { vault.isUnlocked && vault.errorMessage != nil },
                     set: { if !$0 { vault.errorMessage = nil } }
                 )
             ) {
@@ -35,7 +35,7 @@ struct SecureVaultApp: App {
             }
             .onChange(of: scenePhase) { _, phase in
                 if phase == .background {
-                    vault.lock()
+                    vault.lock(autoUnlockOnNextActivation: true)
                 }
             }
         }

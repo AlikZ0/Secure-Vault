@@ -6,6 +6,8 @@
 
 - Добавление, редактирование, удаление и поиск логинов/паролей/заметок.
 - Шифрование **всего** JSON-хранилища (включая названия и логины) через CryptoKit AES-256-GCM.
+- Разблокировка с немедленным системным запросом Face ID / Touch ID / кода устройства, автоматическая попытка после запуска и при возвращении из фона; отмена не вызывает навязчивую ошибку.
+- Значок приложения явно указывается через AppIcon в asset catalog; GitHub Actions проверяет его наличие в собранной .app. Добавлен фирменный launch screen.
 - Ключ AES-256 лежит в Keychain с `kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly` и `.userPresence`: подтверждение Face ID/Touch ID или кодом устройства на доступ к ключу.
 - Ключ создаётся один раз, существующий ключ никогда не перезаписывается автоматически.
 - При сворачивании приложения текущий экран блокируется, ссылка на ключ и список записей очищаются из состояния приложения; при неактивном окне показывается экран-заглушка.
@@ -122,3 +124,16 @@ open SecureVault.xcodeproj
 - [Apple: Free developer account](https://developer.apple.com/help/account/basics/about-your-developer-account)
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen)
 - [Apparition](https://github.com/illixion/Apparition)
+
+## Что исправлено в версии 2
+
+1. `SecureVault/Services/DeviceAuthentication.swift` — определение Face ID, Touch ID, отсутствия биометрии; единая системная проверка с запасным кодом устройства.
+2. `SecureVault/ViewModels/VaultViewModel.swift` — мгновенная реакция кнопки, асинхронное подтверждение, чтение ключа вне главного потока, защита от устаревшего ответа после блокировки.
+3. `SecureVault/Services/KeychainService.swift` — чтение ключа с уже авторизованным `LAContext`, без второго системного запроса. Идентификаторы Keychain не менялись.
+4. `SecureVault/Views/LockView.swift` — правильная иконка Face ID / Touch ID и подписи, а также статус операции и ошибка прямо на экране.
+5. `SecureVault/SecureVaultApp.swift` — маска приватности не перекрывает экран входа при системной биометрии.
+6. `project.yml` и `Assets.xcassets` — отдельная картинка и цвет запуска, контроль наличия иконки в workflow.
+
+**Для сохранения существующих данных:** обновляй приложение поверх старого; не удаляй его и не меняй `PRODUCT_BUNDLE_IDENTIFIER`, Apple Team/Keychain access group или способы подписи, влияющие на доступ к Keychain. Если инструмент установки всегда переустанавливает приложение с удалением данных, сначала проверь на тестовых записях.
+
+**Проверка:** выполняется на GitHub Actions с macOS; локальная проверка на Linux не заменяет компиляцию и запуск на iPhone.
