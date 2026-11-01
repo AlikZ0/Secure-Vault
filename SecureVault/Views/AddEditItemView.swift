@@ -6,6 +6,7 @@ struct AddEditItemView: View {
     let existingItem: VaultItem?
 
     @State private var title: String
+    @State private var website: String
     @State private var username: String
     @State private var password: String
     @State private var notes: String
@@ -16,24 +17,30 @@ struct AddEditItemView: View {
         self.vault = vault
         self.existingItem = existingItem
         _title = State(initialValue: existingItem?.title ?? "")
+        _website = State(initialValue: existingItem?.website ?? "")
         _username = State(initialValue: existingItem?.username ?? "")
         _password = State(initialValue: existingItem?.password ?? "")
         _notes = State(initialValue: existingItem?.notes ?? "")
     }
 
     private var isValid: Bool {
-        !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-        !password.isEmpty
+        !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !password.isEmpty
     }
 
     var body: some View {
         NavigationStack {
             Form {
-                Section("Название") {
+                Section("Основное") {
                     TextField("Например, GitHub", text: $title)
-                        .textInputAutocapitalization(.sentences)
+                        .textInputAutocapitalization(.words)
                         .autocorrectionDisabled()
+                    TextField("Сайт или ссылка, например github.com", text: $website)
+                        .textContentType(.URL)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .keyboardType(.URL)
                 }
+
                 Section("Учётные данные") {
                     TextField("Логин или email (необязательно)", text: $username)
                         .textContentType(.username)
@@ -52,6 +59,7 @@ struct AddEditItemView: View {
                         .textContentType(.password)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
+
                         Button { passwordVisible.toggle() } label: {
                             Image(systemName: passwordVisible ? "eye.slash" : "eye")
                         }
@@ -110,6 +118,7 @@ struct AddEditItemView: View {
         let item = VaultItem(
             id: existingItem?.id ?? UUID(),
             title: title.trimmingCharacters(in: .whitespacesAndNewlines),
+            website: website.trimmingCharacters(in: .whitespacesAndNewlines),
             username: username.trimmingCharacters(in: .whitespacesAndNewlines),
             password: password,
             notes: notes,

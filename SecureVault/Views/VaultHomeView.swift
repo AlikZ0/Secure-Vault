@@ -6,12 +6,14 @@ struct VaultHomeView: View {
     @State private var showingAdd = false
     @State private var showingAbout = false
     @State private var selectedItem: VaultItem?
+    @AppStorage(ClipboardService.timeoutKey) private var clipboardTimeout = ClipboardService.fallbackTimeout
 
     private var filteredItems: [VaultItem] {
         if searchText.isEmpty { return vault.items }
         return vault.items.filter {
             $0.title.localizedCaseInsensitiveContains(searchText) ||
-            $0.username.localizedCaseInsensitiveContains(searchText)
+            $0.username.localizedCaseInsensitiveContains(searchText) ||
+            $0.website.localizedCaseInsensitiveContains(searchText)
         }
     }
 
@@ -49,7 +51,7 @@ struct VaultHomeView: View {
             }
             .navigationTitle("Хранилище")
             .navigationBarTitleDisplayMode(.large)
-            .searchable(text: $searchText, prompt: "Поиск по названию")
+            .searchable(text: $searchText, prompt: "Поиск по названию или сайту")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button { vault.lock() } label: {
@@ -59,8 +61,9 @@ struct VaultHomeView: View {
                 }
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Button { showingAbout = true } label: {
-                        Image(systemName: "info.circle")
+                        Image(systemName: "slider.horizontal.3")
                     }
+                    .accessibilityLabel("Настройки")
                     Button { showingAdd = true } label: {
                         Image(systemName: "plus.circle.fill")
                             .font(.title3)
@@ -91,7 +94,7 @@ struct VaultHomeView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Сейф разблокирован")
                     .font(.headline)
-                Text("\(vault.items.count) \(entryWord(vault.items.count)) · Локальное шифрование")
+                Text("\(vault.items.count) \(entryWord(vault.items.count)) · Буфер: \(timeoutLabel(clipboardTimeout))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -113,7 +116,7 @@ struct VaultHomeView: View {
                 .background(VaultTheme.accent.opacity(0.1), in: Circle())
             Text("Пока нет записей")
                 .font(.title3.bold())
-            Text("Добавьте первый пароль. Все поля будут зашифрованы перед сохранением.")
+            Text("Добавьте первый пароль, сайт и логин. Иконка сайта подтянется автоматически по домену.")
                 .foregroundStyle(.secondary)
                 .font(.subheadline)
                 .multilineTextAlignment(.center)
@@ -123,6 +126,17 @@ struct VaultHomeView: View {
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 20)
         .padding(.top, 62)
+    }
+
+    private func timeoutLabel(_ seconds: TimeInterval) -> String {
+        switch Int(seconds) {
+        case 30: return "30 сек."
+        case 60: return "1 мин."
+        case 120: return "2 мин."
+        case 300: return "5 мин."
+        case 600: return "10 мин."
+        default: return "\(Int(seconds)) сек."
+        }
     }
 
     private func entryWord(_ count: Int) -> String {
@@ -142,17 +156,13 @@ private struct VaultItemRow: View {
     var body: some View {
         VaultCard {
             HStack(spacing: 14) {
-                Image(systemName: "key.fill")
-                    .font(.title3)
-                    .foregroundStyle(VaultTheme.accent)
-                    .frame(width: 46, height: 46)
-                    .background(VaultTheme.accent.opacity(0.10), in: RoundedRectangle(cornerRadius: 13))
+                WebsiteIconView(item: item, size: 46, cornerRadius: 13)
                 VStack(alignment: .leading, spacing: 5) {
                     Text(item.title)
                         .font(.headline)
                         .foregroundStyle(.primary)
                         .lineLimit(1)
-                    Text(item.username.isEmpty ? "Защищённая запись" : item.username)
+                    Text(item.displaySubtitle)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)

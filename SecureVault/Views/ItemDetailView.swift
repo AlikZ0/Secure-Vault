@@ -9,9 +9,20 @@ struct ItemDetailView: View {
     @State private var isEditing = false
     @State private var showingDeleteAlert = false
     @State private var copiedMessage: String?
+    @AppStorage(ClipboardService.timeoutKey) private var clipboardTimeout = ClipboardService.fallbackTimeout
 
     private var item: VaultItem? {
         vault.items.first(where: { $0.id == itemID })
+    }
+
+    private var shareText: String {
+        guard let item else { return "" }
+        var lines = [item.title]
+        if let host = item.displayHost { lines.append("Сайт: \(host)") }
+        if !item.username.isEmpty { lines.append("Логин: \(item.username)") }
+        lines.append("Пароль: \(item.password)")
+        if !item.notes.isEmpty { lines.append("Заметка: \(item.notes)") }
+        return lines.joined(separator: "\n")
     }
 
     var body: some View {
@@ -20,21 +31,28 @@ struct ItemDetailView: View {
                 if let item {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 20) {
-                            VStack(spacing: 10) {
-                                Image(systemName: "key.fill")
-                                    .font(.system(size: 30))
-                                    .foregroundStyle(VaultTheme.accent)
-                                    .frame(width: 74, height: 74)
-                                    .background(VaultTheme.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 22))
+                            VStack(spacing: 12) {
+                                WebsiteIconView(item: item, size: 82, cornerRadius: 24)
                                 Text(item.title)
                                     .font(.title2.bold())
                                     .multilineTextAlignment(.center)
+                                if let host = item.displayHost {
+                                    Label(host, systemImage: "globe")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                }
                                 Text("Обновлено \(item.updatedAt.formatted(date: .abbreviated, time: .omitted))")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
                             .frame(maxWidth: .infinity)
                             .padding(.top, 20)
+
+                            if let host = item.displayHost {
+                                fieldCard(label: "САЙТ", value: host) {
+                                    copy(host)
+                                }
+                            }
 
                             if !item.username.isEmpty {
                                 fieldCard(label: "ЛОГИН", value: item.username) {
@@ -86,12 +104,27 @@ struct ItemDetailView: View {
                                 }
                             }
 
+                            VaultCard {
+                                VStack(alignment: .leading, spacing: 10) {
+                                    Label("Поделиться записью", systemImage: "square.and.arrow.up")
+                                        .font(.headline)
+                                    Text("Поделится названием, сайтом, логином, паролем и заметкой этой записи.")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    ShareLink(item: shareText) {
+                                        Label("Открыть меню “Поделиться”", systemImage: "square.and.arrow.up")
+                                            .frame(maxWidth: .infinity)
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                }
+                            }
+
                             if let copiedMessage {
                                 VStack(alignment: .leading, spacing: 12) {
                                     Label(copiedMessage, systemImage: "checkmark.circle.fill")
                                         .font(.subheadline)
                                         .foregroundStyle(.green)
-                                    Text("Буфер будет очищен системой через 60 секунд. Вы также можете очистить его сейчас.")
+                                    Text("Буфер будет очищен системой через \(timeoutLabel(clipboardTimeout)). Вы также можете очистить его сейчас.")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                     Button("Очистить скопированное") {
@@ -130,8 +163,12 @@ struct ItemDetailView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Готово") { dismiss() }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
-                    if item != nil {
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    if let item {
+                        ShareLink(item: shareText) {
+                            Image(systemName: "square.and.arrow.up")
+                        }
+                        .accessibilityLabel("Поделиться записью")
                         Button("Изменить") { isEditing = true }
                     }
                 }
@@ -169,9 +206,20 @@ struct ItemDetailView: View {
                     Button(action: copyAction) {
                         Image(systemName: "doc.on.doc")
                     }
-                    .accessibilityLabel("Скопировать логин")
+                    .accessibilityLabel("Скопировать \(label.lowercased())")
                 }
             }
+        }
+    }
+
+    private func timeoutLabel(_ seconds: TimeInterval) -> String {
+        switch Int(seconds) {
+        case 30: return "30 секунд"
+        case 60: return "1 минуту"
+        case 120: return "2 минуты"
+        case 300: return "5 минут"
+        case 600: return "10 минут"
+        default: return "\(Int(seconds)) сек."
         }
     }
 
