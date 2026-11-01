@@ -3,22 +3,31 @@ import UIKit
 
 @MainActor
 final class ClipboardService {
-    static let timeout: TimeInterval = 60
+    static let timeoutKey = "clipboard.timeout.seconds"
+    static let fallbackTimeout: TimeInterval = 60
     private var ownedChangeCount: Int?
 
-    /// Never reads another app's clipboard. iOS removes our copied value at expiry.
-    func copy(_ value: String) {
+    static var configuredTimeout: TimeInterval {
+        let stored = UserDefaults.standard.double(forKey: timeoutKey)
+        return stored > 0 ? stored : fallbackTimeout
+    }
+
+    static func saveTimeout(_ seconds: TimeInterval) {
+        UserDefaults.standard.set(seconds, forKey: timeoutKey)
+    }
+
+    func copy(_ value: String, expiresIn: TimeInterval? = nil) {
+        let duration = max(10, expiresIn ?? Self.configuredTimeout)
         UIPasteboard.general.setItems(
             [["public.utf8-plain-text": value]],
             options: [
                 .localOnly: true,
-                .expirationDate: Date().addingTimeInterval(Self.timeout) as NSDate
+                .expirationDate: Date().addingTimeInterval(duration) as NSDate
             ]
         )
         ownedChangeCount = UIPasteboard.general.changeCount
     }
 
-    /// Does not erase clipboard contents if another app has copied something since us.
     @discardableResult
     func clearIfUnchanged() -> Bool {
         guard let count = ownedChangeCount else { return false }
