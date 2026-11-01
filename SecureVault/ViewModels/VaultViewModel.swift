@@ -1,54 +1,76 @@
 import CryptoKit
 import Foundation
+import LocalAuthentication
 
 @MainActor
 final class VaultViewModel: ObservableObject {
     @Published private(set) var items: [VaultItem] = []
     @Published private(set) var isUnlocked = false
     @Published private(set) var isUnlocking = false
+    @Published private(set) var shouldAutoUnlock = true
     @Published var errorMessage: String?
 
     private var key: SymmetricKey?
     private var unlockGeneration = 0
+    private var authenticationContext: LAContext?
     let clipboard = ClipboardService()
 
     func unlock() {
         guard !isUnlocked && !isUnlocking else { return }
-        isUnlocking = true
+        isUnlocking = true  // Visible progress on the very first tap.
+        shouldAutoUnlock = false
         errorMessage = nil
         let attempt = unlockGeneration
+        let context = LAContext()
+        authenticationContext = context
 
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let result: Result<(SymmetricKey, [VaultItem]), Error> = Result {
-                let repo = try VaultRepository()
-                let key = try KeychainService.unlockKey(encryptedStoreExists: repo.hasEncryptedFile)
-                let items = try repo.load(using: key)
-                if !repo.hasEncryptedFile {
-                    try repo.save(items, using: key)
-                }
-                return (key, items)
-            }
-            DispatchQueue.main.async { [weak self] in
+        Task { [weak self] in
+            do {
+                // The system prompt starts before any Keychain or file I/O.
+                try await DeviceAuthentication.authenticate(using: context)
                 guard let self, self.unlockGeneration == attempt else { return }
+
+                // Keychain and disk I/O must not block SwiftUI's main actor.
+                let (unlockedKey, loadedItems) = try await Task.detached(priority: .userInitiated) {
+                    let repository = try VaultRepository()
+                    let unlockedKey = try KeychainService.unlockKey(
+                        using: context,
+                        encryptedStoreExists: repository.hasEncryptedFile
+                    )
+                    let loadedItems = try repository.load(using: unlockedKey)
+                    if !repository.hasEncryptedFile {
+                        try repository.save(loadedItems, using: unlockedKey)
+                    }
+                    return (unlockedKey, loadedItems)
+                }.value
+
+                guard self.unlockGeneration == attempt else { return }
+                self.authenticationContext = nil
+                self.key = unlockedKey
+                self.items = loadedItems.sorted { $0.updatedAt > $1.updatedAt }
                 self.isUnlocking = false
-                switch result {
-                case .success(let (key, items)):
-                    self.key = key
-                    self.items = items.sorted { $0.updatedAt > $1.updatedAt }
-                    self.isUnlocked = true
-                case .failure(let error):
-                    self.errorMessage = error.localizedDescription
+                self.isUnlocked = true
+            } catch {
+                guard let self, self.unlockGeneration == attempt else { return }
+                self.authenticationContext = nil
+                self.isUnlocking = false
+                if !DeviceAuthentication.isUserCancellation(error) {
+                    self.errorMessage = DeviceAuthentication.message(for: error)
                 }
             }
         }
     }
 
-    func lock() {
+    func lock(autoUnlockOnNextActivation: Bool = false) {
         unlockGeneration += 1
+        authenticationContext?.invalidate() // Cancels any in-flight authentication.
+        authenticationContext = nil
         key = nil
         items.removeAll()
         isUnlocked = false
         isUnlocking = false
+        shouldAutoUnlock = autoUnlockOnNextActivation
+        errorMessage = nil
         clipboard.forgetTracking()
     }
 

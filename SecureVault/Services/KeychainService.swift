@@ -35,13 +35,9 @@ enum KeychainService {
 
     /// This device-only key requires user presence whenever fetched from Keychain.
     /// Do not replace it when the encrypted database already exists.
-    static func unlockKey(encryptedStoreExists: Bool) throws -> SymmetricKey {
-        let context = LAContext()
-        context.localizedFallbackTitle = "Использовать код-пароль"
-        var authenticationError: NSError?
-        guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &authenticationError) else {
-            throw KeychainError.passcodeRequired
-        }
+    static func unlockKey(using context: LAContext, encryptedStoreExists: Bool) throws -> SymmetricKey {
+        // The same, already authenticated context avoids another system prompt.
+        // Never replace a key that protects existing encrypted data.
 
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,

@@ -25,7 +25,10 @@ targets:
         CFBundleDevelopmentRegion: ru
         CFBundleDisplayName: Secure Vault
         NSFaceIDUsageDescription: "Используется для защиты ключа шифрования хранилища."
-        UILaunchScreen: {}
+        UILaunchScreen:
+          UIImageName: LaunchMark
+          UIColorName: LaunchBackground
+          UIImageRespectsSafeAreaInsets: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.example.securevault.local
